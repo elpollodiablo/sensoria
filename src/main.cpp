@@ -243,11 +243,40 @@ long calculate_dust_mg(long slots_low_duration[], unsigned long slots_sample_tim
   //Serial.print(" ratio ");
   //Serial.println(ratio);
   // apparently, that's the spec sheet curve. I doubt it, but let's just use it for now.
-  long concentration = ceil( 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62);
-
+  // long concentration = ceil( 1.1 * pow(ratio, 3) - 3.8 * pow(ratio, 2) + 520 * ratio + 0.62);
+  // let's try this curve instead:
+  long concentration = ceil (0.1776*pow(ratio,3) - 0.24*pow(ratio,2) + 94.003*ratio);
   return(concentration);
 }
+int get_aqi(int p25_weight) {
+  long aqi = 0;
 
+  if (p25_weight>= 0 && p25_weight <= 35) {
+    aqi = 0   + (50.0 / 35 * p25_weight);
+  } 
+  else if (p25_weight > 35 && p25_weight <= 75) {
+    aqi = 50  + (50.0 / 40 * (p25_weight - 35));
+  } 
+  else if (p25_weight > 75 && p25_weight <= 115) {
+    aqi = 100 + (50.0 / 40 * (p25_weight - 75));
+  } 
+  else if (p25_weight > 115 && p25_weight <= 150) {
+    aqi = 150 + (50.0 / 35 * (p25_weight - 115));
+  } 
+  else if (p25_weight > 150 && p25_weight <= 250) {
+    aqi = 200 + (100.0 / 100.0 * (p25_weight - 150));
+  } 
+  else if (p25_weight > 250 && p25_weight <= 500) {
+    aqi = 300 + (200.0 / 250.0 * (p25_weight - 250));
+  } 
+  else if (p25_weight > 500.0) {
+    aqi = 500 + (500.0 / 500.0 * (p25_weight - 500.0)); // Extension
+  } 
+  else {
+    aqi = 0;
+  }
+  return aqi;
+}
 void loop()
 {
 #ifdef PIN_LCD_D4
@@ -301,19 +330,16 @@ void loop()
   digitalWrite(13, HIGH);
   store_dust_timings(PIN_DUST_PM25, slots_low_duration_pm25, slots_sample_time_pm25);
   val_dust_pm25 = calculate_dust_mg(slots_low_duration_pm25, slots_sample_time_pm25);
-  val_ppmv_pm25 = ceil(((val_dust_pm25 * 0.0283168) / 100) *  ((0.08205 * val_temp) / 0.01)) / 1000;
   send_result_int("P25", val_dust_pm25);
-  send_result_int("25m", val_ppmv_pm25);
 #endif
 #ifdef PIN_DUST_PM10
   digitalWrite(13, LOW);
   store_dust_timings(PIN_DUST_PM10, slots_low_duration_pm10, slots_sample_time_pm10);
   val_dust_pm10 = calculate_dust_mg(slots_low_duration_pm10, slots_sample_time_pm10);
-  val_ppmv_pm10 = ceil(((val_dust_pm10 * 0.0283168) / 100) *  ((0.08205 * val_temp) / 0.01)) / 1000;
   send_result_int("P10", val_dust_pm10);
-  send_result_int("10m", val_ppmv_pm10);
 #endif
 #if defined(PIN_DUST_PM10) || defined(PIN_DUST_PM25)
+  send_result_int("AQI", get_aqi(val_dust_pm10 - val_dust_pm25));
   // increase or reset slot counter
   slot_counter = (++slot_counter == SAMPLE_SLOTS) ? 0 : slot_counter;
   //Serial.print("slot counter ");
